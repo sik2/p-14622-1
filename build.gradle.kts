@@ -24,7 +24,7 @@ repositories {
     mavenCentral()
 }
 
-extra["springAiVersion"] = "1.0.3"
+extra["springAiVersion"] = "1.0.0-M7"
 
 dependencies {
     // Spring Boot 기본
