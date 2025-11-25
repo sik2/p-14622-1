@@ -13,9 +13,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.data.domain.PageRequest;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.*;
 
 @SpringBootTest
 public class QuestionServiceTests {
@@ -35,17 +33,10 @@ public class QuestionServiceTests {
     @Autowired
     private EmbeddingModel embeddingModel;
 
+    // 각 테스트 전후로 데이터 초기화
     @BeforeEach
-    public void setUp() {
-        cleanUp();
-    }
-
     @AfterEach
-    public void tearDown() {
-        cleanUp();
-    }
-
-    private void cleanUp() {
+    public void cleanUp() {
         answerRepository.deleteAll();
         questionDocumentRepository.deleteAll();
         questionRepository.deleteAll();
@@ -53,8 +44,8 @@ public class QuestionServiceTests {
 
     @Test
     public void 서비스_테스트() {
+        // Question 생성 시 QuestionDocument도 함께 생성되는지 확인
         Question question = questionService.create("서비스 테스트 질문 내용");
-
         assertNotNull(question);
         assertNotEquals(0, questionRepository.count());
         assertNotEquals(0, questionDocumentRepository.count());
@@ -63,17 +54,16 @@ public class QuestionServiceTests {
     @Test
     public void KnnSearch_테스트() {
         // 테스트 데이터 생성
-        String[] questions = {"where is pizza store", "when open the pizza store", "how much pizza"};
-        Question[] savedQuestions = new Question[questions.length];
+        String[] questionTexts = {"where is pizza store", "when open the pizza store", "how much pizza"};
+        Question[] questions = new Question[questionTexts.length];
 
-        for (int i = 0; i < questions.length; i++) {
-            savedQuestions[i] = questionService.create(questions[i]);
+        for (int i = 0; i < questionTexts.length; i++) {
+            questions[i] = questionService.create(questionTexts[i]);
         }
 
-        // KNN 검색 실행
-        float[] queryVector = embeddingModel.embed("when open the pizza store");
+        // KNN 검색: 임베딩 유사도로 가장 유사한 질문 찾기
         var searchResult = questionDocumentRepository.knnSearch(
-                queryVector,
+                embeddingModel.embed("when open the pizza store"),
                 "embedding",
                 1,
                 10,
@@ -81,8 +71,12 @@ public class QuestionServiceTests {
                 QuestionDocument.class
         );
 
-        // 검증: 두 번째 질문(index 1)이 가장 유사해야 함
-        QuestionDocument firstResult = searchResult.getContent().get(0).getContent();
-        assertEquals(savedQuestions[1].getId(), firstResult.getId());
+        // 검색 결과 검증 (임베딩 모델이 questions[1]을 가장 유사하다고 판단해야 함)
+        var firstResult = searchResult.iterator().next();
+        assertEquals(questions[1].getId(), firstResult.getContent().getId());
+
+        // search 메서드 테스트: FAQ 형태로 반환되는지 확인
+        var faqs = questionService.search("when open the pizza store");
+        assertTrue(faqs.get(0).getQuestion().contains("pizza store"));
     }
 }
